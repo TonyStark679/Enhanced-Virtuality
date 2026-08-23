@@ -209,8 +209,5 @@ MIT License.
 
 ⚡ Built for Termux. Powered by Gemini.
    Backed up by Qwen.
-JARVIS either way.
 
-This version is way more **repo-ready**. The structure is basically:
-
-**What is it → features → architecture → setup → Qwen → usage → commands → files → security → troubleshooting → philosophy.**
+# JARVIS either way!
