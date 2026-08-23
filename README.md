@@ -32,21 +32,21 @@ When the network is available, JARVIS communicates with Gemini through the Gemin
 ## 🧠 How It Works
 
 ```text
-                         ┌─────────────┐
-                         │   JARVIS    │
-                         └──────┬──────┘
-                                │
+                       ┌─────────────┐
+                       │   JARVIS      │
+                       └──────┬──────┘
+                               │
                          Check Network
-                                │
-                  ┌─────────────┴─────────────┐
-                  │                           │
-               ONLINE                      OFFLINE
-                  │                           │
-                  ▼                           ▼
-             ☁️ GEMINI                    🧠 QWEN
-              Gemini API              Local GGUF Model
-                  │                           │
-                  └─────────────┬─────────────┘
+                               │
+                ┌─────────────┴─────────────┐
+                │                                │
+             ONLINE                          OFFLINE
+                │                                │
+                ▼                                ▼
+           ☁️ GEMINI                         🧠 QWEN
+            Gemini API                  Local GGUF Model
+                │                                │
+                └─────────────┬─────────────┘
                                 │
                                 ▼
                          🤖 JARVIS RESPONSE
