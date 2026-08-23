@@ -14,10 +14,10 @@ JARVIS is a personal AI assistant designed to run directly on Android through Te
 - ⚙️ Manual model selection with `/model`
 
 ### ✍🏻 NOTE:
--Add api key to .env.
-
--To use qwen (offline mode) turn off your internet/Wi-Fi 
-and then type into the prompt area.
+- Add api key to .env.
+- To use qwen (offline mode) turn off 
+  your internet/Wi-Fi and then type into 
+  the prompt area.
 
 ### 🚀 Setup
 
