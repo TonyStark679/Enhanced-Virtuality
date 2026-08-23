@@ -24,7 +24,6 @@ pip install requests
 cp .env.example .env
 python jarvis.py
 
-Add your Gemini API key to .env.
-🧠 Modes:
-auto • gemini • qwen
-Built for Android. Built for offline resilience. Built because why not. ⚡
+### ✍🏻 NOTE:
+-Add api key to .env.
+-To use qwen (offline mode) turn off your internet/Wi-Fi and then type into the prompt area.
