@@ -50,7 +50,7 @@ When the network is available, JARVIS communicates with Gemini through the Gemin
                                 │
                                 ▼
                          🤖 JARVIS RESPONSE
-
+```
 ✍🏻 NOTE
 🖥️ Add your Gemini API key to the .env file.
 🤖 To manually test Qwen offline mode, turn off your internet/Wi-Fi and type your message into the prompt.
