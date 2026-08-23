@@ -1,0 +1,7 @@
+.env
+memory.json
+models/*
+__pycache__/
+*.pyc
+*.save
+*.save.*
