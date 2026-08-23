@@ -1,4 +1,4 @@
-# 🤖 JARVIS
+# 🤖 JARVIS Version 0.0.1
 
 > A lightweight AI assistant for Termux with automatic Gemini ↔ Qwen fallback.
 
