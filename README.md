@@ -13,6 +13,10 @@ JARVIS is a personal AI assistant designed to run directly on Android through Te
 - 🎭 Custom personality
 - ⚙️ Manual model selection with `/model`
 
+### ✍🏻 NOTE:
+-Add api key to .env.
+-To use qwen (offline mode) turn off your internet/Wi-Fi and then type into the prompt area.
+
 ### 🚀 Setup
 
 Requires **Termux, Python 3, `requests`, `llama-cli`, a Qwen GGUF model, and a Gemini API key.**
@@ -24,6 +28,3 @@ pip install requests
 cp .env.example .env
 python jarvis.py
 
-### ✍🏻 NOTE:
--Add api key to .env.
--To use qwen (offline mode) turn off your internet/Wi-Fi and then type into the prompt area.
