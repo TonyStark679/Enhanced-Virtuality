@@ -1,7 +1,59 @@
+```text
+# ============================================================
+# E.V. // LOCAL DEVELOPMENT
+# ============================================================
+
+# Secrets
 .env
-memory.json
+.env.*
+!.env.example
+
+# Local AI models
 models/*
+*.gguf
+*.gguf.*
+*.bin
+*.safetensors
+
+# Runtime data
+memory.json
+*.log
+logs/
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
+
+# Local saves / backups
 *.save
 *.save.*
+*.bak
+*.backup
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+```
