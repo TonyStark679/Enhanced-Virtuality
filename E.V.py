@@ -1,24 +1,119 @@
+```python
 #!/usr/bin/env python3
+
+"""
+E.V. // Enhanced Virtuality
+
+Personal hybrid AI assistant with:
+- Gemini cloud inference
+- Local Qwen GGUF inference through llama-cli
+- Automatic provider fallback
+- Persistent local memory
+- Configurable personality
+- Nebula terminal UI
+- Optional Oh My Logo asset
+"""
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
 import shutil
 import subprocess
+import sys
 import textwrap
 import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import requests
 
 
 # ============================================================
-# E.V.
-# ENHANCED VIRTUALITY
+# E.V. // ENVIRONMENT LOADING
+# ============================================================
+
+PROJECT_DIR = Path(__file__).resolve().parent
+
+
+def load_env_file(path: Path) -> None:
+    """
+    Load a simple .env file without requiring python-dotenv.
+
+    Existing process environment variables always win.
+    """
+
+    if not path.is_file():
+        return
+
+    try:
+        content = path.read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        return
+
+    for raw_line in content.splitlines():
+
+        line = raw_line.strip()
+
+        if not line:
+            continue
+
+        if line.startswith("#"):
+            continue
+
+        if "=" not in line:
+            continue
+
+        key, value = line.split(
+            "=",
+            1,
+        )
+
+        key = key.strip()
+        value = value.strip()
+
+        if not key:
+            continue
+
+        # Never overwrite an already-exported environment value.
+        if key in os.environ:
+            continue
+
+        # Remove matching quotes.
+        if (
+            len(value) >= 2
+            and value[0] == value[-1]
+            and value[0] in {"'", '"'}
+        ):
+            value = value[1:-1]
+
+        os.environ[key] = value
+
+
+load_env_file(
+    PROJECT_DIR / ".env"
+)
+
+
+# ============================================================
+# E.V. // IDENTITY
 # ============================================================
 
 APP_NAME = "E.V."
 APP_FULL_NAME = "Enhanced Virtuality"
+
+APP_VERSION = os.getenv(
+    "EV_VERSION",
+    "2.0.0",
+)
+
+
+# ============================================================
+# E.V. // PATHS
+# ============================================================
 
 ROOT = Path(
     os.getenv(
@@ -52,21 +147,85 @@ PERSONALITY_FILE = Path(
     )
 ).expanduser()
 
-# Optional logo asset.
-# If assets/ev_logo.txt exists, E.V. will use it.
 LOGO_FILE = Path(
     os.getenv(
         "JARVIS_LOGO_FILE",
-        str(ROOT / "assets" / "ev_logo.txt"),
+        str(
+            PROJECT_DIR
+            / "assets"
+            / "ev_logo.txt"
+        ),
     )
 ).expanduser()
 
 
 # ============================================================
-# CONFIGURATION
+# E.V. // AI CONFIGURATION
+# ============================================================
+
+DEFAULT_THREADS = os.getenv(
+    "JARVIS_THREADS",
+    str(
+        min(
+            6,
+            os.cpu_count() or 6,
+        )
+    ),
+)
+
+DEFAULT_CTX = os.getenv(
+    "JARVIS_CTX",
+    "2048",
+)
+
+DEFAULT_TOKENS = os.getenv(
+    "JARVIS_MAX_TOKENS",
+    "256",
+)
+
+DEFAULT_TEMPERATURE = os.getenv(
+    "JARVIS_TEMPERATURE",
+    "0.7",
+)
+
+QWEN_TIMEOUT = int(
+    os.getenv(
+        "JARVIS_QWEN_TIMEOUT",
+        "180",
+    )
+)
+
+GEMINI_TIMEOUT = int(
+    os.getenv(
+        "JARVIS_GEMINI_TIMEOUT",
+        "60",
+    )
+)
+
+NETWORK_TIMEOUT = float(
+    os.getenv(
+        "JARVIS_NETWORK_TIMEOUT",
+        "3",
+    )
+)
+
+GEMINI_MODEL = os.getenv(
+    "GEMINI_MODEL",
+    "gemini-2.5-flash",
+)
+
+GEMINI_BASE_URL = os.getenv(
+    "GEMINI_BASE_URL",
+    "https://generativelanguage.googleapis.com/v1beta",
+)
+
+
+# ============================================================
+# E.V. // FALLBACK PERSONALITY
 # ============================================================
 
 DEFAULT_PERSONALITY = """You are E.V., short for Enhanced Virtuality.
+
 You are a capable personal AI assistant.
 
 Be friendly, witty, calm, and confident.
@@ -83,234 +242,750 @@ Use conversation history and memory when relevant.
 """
 
 
+# ============================================================
+# E.V. // TERMINAL COLORS
+# ============================================================
+
+ESC = "\033["
+
+RESET = f"{ESC}0m"
+
 ANSI = {
-    "reset": "\033[0m",
-    "bold": "\033[1m",
-    "dim": "\033[2m",
-    "cyan": "\033[38;5;117m",
-    "blue": "\033[38;5;111m",
-    "purple": "\033[38;5;141m",
-    "magenta": "\033[38;5;207m",
-    "green": "\033[38;5;114m",
-    "yellow": "\033[38;5;221m",
-    "red": "\033[38;5;203m",
-    "white": "\033[38;5;255m",
+    "reset": RESET,
+    "bold": f"{ESC}1m",
+    "dim": f"{ESC}2m",
+    "black": f"{ESC}30m",
+    "white": f"{ESC}38;5;255m",
+    "gray": f"{ESC}38;5;245m",
+    "cyan": f"{ESC}38;5;117m",
+    "blue": f"{ESC}38;5;111m",
+    "purple": f"{ESC}38;5;141m",
+    "magenta": f"{ESC}38;5;207m",
+    "pink": f"{ESC}38;5;212m",
+    "green": f"{ESC}38;5;114m",
+    "yellow": f"{ESC}38;5;221m",
+    "red": f"{ESC}38;5;203m",
 }
 
 
-DEFAULT_THREADS = os.getenv(
-    "JARVIS_THREADS",
-    str(min(6, os.cpu_count() or 6)),
-)
+# ============================================================
+# E.V. // NERD FONT GLYPHS
+# ============================================================
 
-DEFAULT_CTX = os.getenv(
-    "JARVIS_CTX",
-    "2048",
-)
+GLYPHS = {
+    "core": "󰘧",
+    "brain": "󰧑",
+    "network": "󰖩",
+    "cpu": "󰍛",
+    "memory": "󰘚",
+    "terminal": "",
+    "spark": "✦",
+    "diamond": "◆",
+    "chevron": "",
+    "arrow": "➜",
+    "check": "✓",
+    "cross": "✗",
+    "dot": "●",
+    "bolt": "󰐷",
+}
 
-DEFAULT_TOKENS = os.getenv(
-    "JARVIS_MAX_TOKENS",
-    "256",
-)
 
-NETWORK_TIMEOUT = float(
-    os.getenv(
-        "JARVIS_NETWORK_TIMEOUT",
-        "3",
+FALLBACK_GLYPHS = {
+    "core": "◎",
+    "brain": "◈",
+    "network": "⌁",
+    "cpu": "▣",
+    "memory": "▤",
+    "terminal": ">_",
+    "spark": "✦",
+    "diamond": "◆",
+    "chevron": ">",
+    "arrow": "→",
+    "check": "✓",
+    "cross": "✗",
+    "dot": "•",
+    "bolt": "⚡",
+}
+
+
+def glyph(name: str) -> str:
+    """
+    Return a Nerd Font glyph when enabled,
+    otherwise use a safe Unicode fallback.
+    """
+
+    use_nerd = os.getenv(
+        "JARVIS_NERD_FONT",
+        "true",
+    ).strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+
+    if use_nerd:
+        return GLYPHS.get(
+            name,
+            FALLBACK_GLYPHS.get(
+                name,
+                "•",
+            ),
+        )
+
+    return FALLBACK_GLYPHS.get(
+        name,
+        "•",
     )
-)
 
-GEMINI_MODEL = os.getenv(
-    "GEMINI_MODEL",
-    "gemini-2.5-flash",
-)
+
+# ============================================================
+# E.V. // MASCOT
+# ============================================================
+
+MASCOT = [
+    "        ╭─────────╮",
+    "        │ ◉     ◉ │",
+    "        │    ▽    │",
+    "        │  ╲___╱  │",
+    "        ╰───┬─┬───╯",
+    "            ╱ ╲",
+]
+
+
+# ============================================================
+# E.V. // REQUEST SESSION
+# ============================================================
 
 session = requests.Session()
 
+session.headers.update(
+    {
+        "User-Agent": (
+            "EV-Enhanced-Virtuality/"
+            f"{APP_VERSION}"
+        )
+    }
+)
+
 
 # ============================================================
-# TERMINAL UI
+# E.V. // COLOR HELPERS
 # ============================================================
 
-def color(text: str, name: str) -> str:
+def color(
+    text: str,
+    name: str,
+) -> str:
+
     return (
         f"{ANSI.get(name, '')}"
         f"{text}"
-        f"{ANSI['reset']}"
+        f"{RESET}"
     )
 
 
-def term_width() -> int:
-    return shutil.get_terminal_size(
-        fallback=(80, 24)
-    ).columns
+def rgb(
+    text: str,
+    red_value: int,
+    green_value: int,
+    blue_value: int,
+    bold: bool = False,
+) -> str:
+
+    prefix = (
+        f"{ESC}"
+        f"{'1;' if bold else ''}"
+        f"38;2;"
+        f"{red_value};"
+        f"{green_value};"
+        f"{blue_value}m"
+    )
+
+    return (
+        prefix
+        + text
+        + RESET
+    )
 
 
-def center_line(text: str) -> str:
-    width = term_width()
+def gradient(
+    text: str,
+    start: Tuple[int, int, int] = (
+        175,
+        87,
+        255,
+    ),
+    end: Tuple[int, int, int] = (
+        62,
+        218,
+        255,
+    ),
+) -> str:
+
+    if not text:
+        return ""
+
+    length = len(text)
+
+    if length == 1:
+        return rgb(
+            text,
+            *start,
+            bold=True,
+        )
+
+    result = []
+
+    for index, character in enumerate(text):
+
+        ratio = index / (
+            length - 1
+        )
+
+        red_value = int(
+            start[0]
+            + (
+                end[0]
+                - start[0]
+            )
+            * ratio
+        )
+
+        green_value = int(
+            start[1]
+            + (
+                end[1]
+                - start[1]
+            )
+            * ratio
+        )
+
+        blue_value = int(
+            start[2]
+            + (
+                end[2]
+                - start[2]
+            )
+            * ratio
+        )
+
+        result.append(
+            rgb(
+                character,
+                red_value,
+                green_value,
+                blue_value,
+                bold=True,
+            )
+        )
+
+    return "".join(
+        result
+    )
+
+
+# ============================================================
+# E.V. // TERMINAL HELPERS
+# ============================================================
+
+def terminal_dimensions() -> Tuple[int, int]:
+
+    size = shutil.get_terminal_size(
+        fallback=(100, 30)
+    )
+
+    return (
+        max(
+            size.columns,
+            60,
+        ),
+        max(
+            size.lines,
+            20,
+        ),
+    )
+
+
+def terminal_width() -> int:
+    return terminal_dimensions()[0]
+
+
+def center_text(
+    text: str,
+) -> str:
+
+    width = terminal_width()
 
     if len(text) >= width:
         return text
 
-    padding = max(
-        0,
-        (width - len(text)) // 2,
+    return (
+        " "
+        * max(
+            0,
+            (
+                width
+                - len(text)
+            )
+            // 2,
+        )
+        + text
     )
-
-    return " " * padding + text
 
 
 def clear_screen() -> None:
+
     command = (
         "cls"
         if os.name == "nt"
         else "clear"
     )
 
-    os.system(command)
+    try:
 
-
-def print_centered(
-    text: str,
-    style: str = "white",
-) -> None:
-
-    print(
-        color(
-            center_line(text),
-            style,
+        subprocess.run(
+            command,
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
         )
+
+    except OSError:
+
+        print(
+            "\n" * 4
+        )
+
+
+# ============================================================
+# E.V. // BOX RENDERING
+# ============================================================
+
+def fit_line(
+    text: str,
+    width: int,
+) -> str:
+
+    plain_width = max(
+        width - 4,
+        1,
+    )
+
+    if len(text) <= plain_width:
+        return text
+
+    return (
+        text[
+            : max(
+                plain_width - 3,
+                1,
+            )
+        ]
+        + "..."
     )
 
 
+def boxed(
+    title: str,
+    lines: Sequence[str],
+    width: Optional[int] = None,
+) -> List[str]:
+
+    target_width = width or min(
+        max(
+            terminal_width() - 8,
+            54,
+        ),
+        96,
+    )
+
+    inner_width = (
+        target_width - 2
+    )
+
+    title_text = (
+        f" {title} "
+    )
+
+    if len(title_text) > inner_width:
+        title_text = title_text[
+            :inner_width
+        ]
+
+    top_remaining = max(
+        inner_width
+        - len(title_text),
+        0,
+    )
+
+    left_border = (
+        "╭"
+        + "─"
+        * (top_remaining // 2)
+        + title_text
+        + "─"
+        * (
+            top_remaining
+            - (
+                top_remaining
+                // 2
+            )
+        )
+        + "╮"
+    )
+
+    bottom_border = (
+        "╰"
+        + "─"
+        * inner_width
+        + "╯"
+    )
+
+    rendered = [
+        color(
+            left_border,
+            "purple",
+        )
+    ]
+
+    for item in lines:
+
+        line = fit_line(
+            str(item),
+            target_width,
+        )
+
+        rendered.append(
+            color(
+                "│",
+                "purple",
+            )
+            + " "
+            + line.ljust(
+                target_width - 3
+            )
+            + " "
+            + color(
+                "│",
+                "purple",
+            )
+        )
+
+    rendered.append(
+        color(
+            bottom_border,
+            "purple",
+        )
+    )
+
+    return rendered
+
+
+def print_box(
+    title: str,
+    lines: Sequence[str],
+    width: Optional[int] = None,
+) -> None:
+
+    for line in boxed(
+        title,
+        lines,
+        width,
+    ):
+        print(
+            center_text(
+                line
+            )
+        )
+
+
 # ============================================================
-# NEBULA LOGO
+# E.V. // LOGO
 # ============================================================
 
-NEBULA_LOGO = [
-    "             ✦       ·          ✧",
-    "       ·          .       ✦",
+FALLBACK_LOGO = [
+    "        ✦             ·              ✧",
     "",
-    "              ███████╗.   ██╗   ██╗",
-    "              ██╔════╝    ██║   ██║",
-    "              █████╗      ██║   ██║",
-    "              ██╔══╝      ╚██╗ ██╔╝",
-    "              ███████╗.    ╚████╔╝",
-    "              ╚══════╝      ╚═══╝",
+    "             ███████╗ ██╗   ██╗",
+    "             ██╔════╝ ██║   ██║",
+    "             █████╗   ██║   ██║",
+    "             ██╔══╝   ╚██╗ ██╔╝",
+    "             ███████╗  ╚████╔╝",
+    "             ╚══════╝   ╚═══╝",
     "",
-    "                   E . V .",
+    "                    E . V .",
     "",
-    "             ✧       ·          ✦",
+    "            ENHANCED VIRTUALITY",
+    "",
+    "        ✧             ·              ✦",
 ]
 
 
-def load_logo() -> list[str]:
+def load_logo() -> List[str]:
 
-    try:
-        if LOGO_FILE.is_file():
+    possible_files = [
+        LOGO_FILE,
+        PROJECT_DIR
+        / "assets"
+        / "ev_logo.txt",
+    ]
 
-            content = LOGO_FILE.read_text(
-                encoding="utf-8"
-            ).strip()
+    for path in possible_files:
 
-            if content:
-                return content.splitlines()
+        try:
 
-    except OSError:
-        pass
+            if not path.is_file():
+                continue
 
-    return NEBULA_LOGO
+            contents = (
+                path.read_text(
+                    encoding="utf-8"
+                )
+                .strip()
+            )
+
+            if contents:
+                return contents.splitlines()
+
+        except OSError:
+            continue
+
+    return FALLBACK_LOGO
 
 
 def print_logo() -> None:
 
     logo = load_logo()
 
-    styles = [
+    palette = [
+        (153, 78, 255),
+        (171, 82, 255),
+        (192, 91, 255),
+        (131, 145, 255),
+        (84, 201, 255),
+        (70, 222, 255),
+        (84, 201, 255),
+        (131, 145, 255),
+        (192, 91, 255),
+        (171, 82, 255),
+        (153, 78, 255),
+    ]
+
+    for index, line in enumerate(logo):
+
+        current_color = palette[
+            index
+            % len(palette)
+        ]
+
+        print(
+            center_text(
+                rgb(
+                    line,
+                    *current_color,
+                    bold=True,
+                )
+            )
+        )
+
+        time.sleep(
+            0.015
+        )
+
+
+def print_mascot() -> None:
+
+    mascot_palette = [
         "purple",
         "magenta",
-        "blue",
         "cyan",
         "blue",
         "magenta",
         "purple",
     ]
 
-    for index, line in enumerate(logo):
+    for index, line in enumerate(
+        MASCOT
+    ):
 
-        style = styles[
-            index % len(styles)
-        ]
-
-        print_centered(
-            line,
-            style,
+        print(
+            center_text(
+                color(
+                    line,
+                    mascot_palette[
+                        index
+                        % len(
+                            mascot_palette
+                        )
+                    ],
+                )
+            )
         )
 
-        time.sleep(0.025)
+
+# ============================================================
+# E.V. // STATUS HELPERS
+# ============================================================
+
+def gemini_key_present() -> bool:
+    return bool(
+        os.getenv(
+            "GEMINI_API_KEY",
+            "",
+        ).strip()
+    )
+
+
+def find_llama_cli() -> Optional[str]:
+
+    configured = os.getenv(
+        "JARVIS_LLAMA_CLI",
+        "",
+    ).strip()
+
+    if configured:
+
+        possible_path = Path(
+            configured
+        ).expanduser()
+
+        if possible_path.is_file():
+            return str(
+                possible_path
+            )
+
+        discovered = shutil.which(
+            configured
+        )
+
+        if discovered:
+            return discovered
+
+        return None
+
+    return shutil.which(
+        "llama-cli"
+    )
+
+
+def qwen_model_present() -> bool:
+
+    return MODEL_FILE.is_file()
+
+
+def qwen_ready() -> bool:
+
+    return (
+        qwen_model_present()
+        and find_llama_cli()
+        is not None
+    )
+
+
+def internet_available() -> bool:
+
+    try:
+
+        response = session.get(
+            "https://generativelanguage.googleapis.com",
+            timeout=NETWORK_TIMEOUT,
+        )
+
+        return response.status_code < 500
+
+    except requests.RequestException:
+        return False
+
+
+def readiness(
+    ready: bool,
+) -> str:
+
+    return (
+        color(
+            "READY",
+            "green",
+        )
+        if ready
+        else color(
+            "MISSING",
+            "yellow",
+        )
+    )
 
 
 # ============================================================
-# STARTUP
+# E.V. // STARTUP
 # ============================================================
 
-def banner() -> None:
+def startup() -> None:
 
     clear_screen()
 
     print()
 
-    print_centered(
-        "INITIALIZING E.V.",
-        "cyan",
+    print(
+        center_text(
+            gradient(
+                "E . V .",
+            )
+        )
     )
 
-    print_centered(
-        "ENHANCED VIRTUALITY",
-        "dim",
+    print(
+        center_text(
+            color(
+                "ENHANCED VIRTUALITY",
+                "dim",
+            )
+        )
     )
 
     print()
 
-    startup_steps = [
+    startup_checks = [
         (
-            "[ OK ]",
-            "Loading neural interface",
+            glyph("check"),
+            "neural interface",
         ),
         (
-            "[ OK ]",
-            "Initializing memory core",
+            glyph("check"),
+            "memory core",
         ),
         (
-            "[ OK ]",
-            "Loading personality matrix",
+            glyph("check"),
+            "personality matrix",
         ),
         (
-            "[ OK ]",
-            "Checking network interface",
+            glyph("check"),
+            "Gemini interface",
         ),
         (
-            "[ OK ]",
-            "Preparing Gemini interface",
+            glyph("check"),
+            "Qwen interface",
         ),
         (
-            "[ OK ]",
-            "Preparing Qwen local engine",
-        ),
-        (
-            "[ OK ]",
-            "Calibrating E.V. core",
+            glyph("check"),
+            "terminal renderer",
         ),
     ]
 
-    for status, message in startup_steps:
+    for icon, label in startup_checks:
 
         print(
-            f"{color(status, 'green')} "
-            f"{color(message, 'white')}"
+            center_text(
+                color(
+                    f"{icon} {label:<24} ONLINE",
+                    "white",
+                )
+            )
         )
 
-        time.sleep(0.07)
+        time.sleep(
+            0.035
+        )
 
     print()
 
@@ -318,60 +993,92 @@ def banner() -> None:
 
     print()
 
-    print_centered(
-        "╭──────────────────────────────────────╮",
-        "purple",
+    print_mascot()
+
+    print()
+
+    print_box(
+        "E.V. // CORE ONLINE",
+        [
+            (
+                f"{glyph('core')} identity      : "
+                f"{APP_FULL_NAME}"
+            ),
+            (
+                f"{glyph('brain')} local brain   : "
+                "Qwen 2.5 3B"
+            ),
+            (
+                f"{glyph('network')} cloud brain   : "
+                "Gemini"
+            ),
+            (
+                f"{glyph('terminal')} interface     : "
+                "terminal"
+            ),
+            (
+                f"{glyph('spark')} version       : "
+                f"{APP_VERSION}"
+            ),
+        ],
     )
 
-    print_centered(
-        "│       E . V .  //  ONLINE            │",
-        "cyan",
+    print()
+
+    print(
+        center_text(
+            color(
+                "◆  ALL SYSTEMS NOMINAL  ◆",
+                "cyan",
+            )
+        )
     )
 
-    print_centered(
-        "│       ENHANCED VIRTUALITY             │",
-        "dim",
-    )
-
-    print_centered(
-        "╰──────────────────────────────────────╯",
-        "purple",
+    print(
+        center_text(
+            color(
+                "type /help to open the command matrix",
+                "dim",
+            )
+        )
     )
 
     print()
 
 
 # ============================================================
-# JSON / MEMORY
+# E.V. // JSON + MEMORY
 # ============================================================
 
 def load_json(
     path: Path,
-    default,
-):
+    default: Any,
+) -> Any:
 
     try:
 
-        if path.exists():
+        if not path.is_file():
+            return default
 
-            return json.loads(
-                path.read_text(
-                    encoding="utf-8"
-                )
+        return json.loads(
+            path.read_text(
+                encoding="utf-8"
             )
+        )
 
     except (
         OSError,
         json.JSONDecodeError,
+        TypeError,
+        ValueError,
     ):
-        pass
 
-    return default
+        return default
 
 
 def save_json(
     path: Path,
-    obj,
+    obj: Any,
 ) -> None:
 
     path.parent.mkdir(
@@ -413,8 +1120,8 @@ def load_personality() -> str:
 
 
 def normalize_memory(
-    raw,
-) -> dict:
+    raw: Any,
+) -> Dict[str, List[str]]:
 
     if not isinstance(
         raw,
@@ -453,8 +1160,36 @@ def normalize_memory(
     }
 
 
+def save_memory(
+    memory: Dict[str, List[str]],
+) -> bool:
+
+    try:
+
+        save_json(
+            MEMORY_FILE,
+            memory,
+        )
+
+        return True
+
+    except OSError as exc:
+
+        print_box(
+            "MEMORY ERROR",
+            [
+                (
+                    f"{glyph('cross')} "
+                    f"{exc}"
+                )
+            ],
+        )
+
+        return False
+
+
 def build_memory_context(
-    memory: dict,
+    memory: Dict[str, List[str]],
 ) -> str:
 
     facts = memory.get(
@@ -472,7 +1207,9 @@ def build_memory_context(
 
 
 def build_chat_history(
-    history,
+    history: Sequence[
+        Dict[str, str]
+    ],
 ) -> str:
 
     if not history:
@@ -484,12 +1221,18 @@ def build_chat_history(
 
         role = (
             "User"
-            if item["role"] == "user"
+            if item.get("role")
+            == "user"
             else "E.V."
         )
 
+        text = item.get(
+            "text",
+            "",
+        )
+
         lines.append(
-            f"{role}: {item['text']}"
+            f"{role}: {text}"
         )
 
     return "\n".join(
@@ -497,11 +1240,17 @@ def build_chat_history(
     )
 
 
+# ============================================================
+# E.V. // PROMPT
+# ============================================================
+
 def build_prompt(
     user_text: str,
-    memory: dict,
+    memory: Dict[str, List[str]],
     personality: str,
-    history,
+    history: Sequence[
+        Dict[str, str]
+    ],
 ) -> str:
 
     return textwrap.dedent(
@@ -521,37 +1270,167 @@ def build_prompt(
 
 
 # ============================================================
-# NETWORK
+# E.V. // GEMINI
 # ============================================================
 
-def internet_available() -> bool:
+def parse_gemini_response(
+    data: Any,
+) -> Tuple[
+    Optional[str],
+    Optional[str],
+]:
 
-    try:
-
-        response = session.get(
-            "https://generativelanguage.googleapis.com",
-            timeout=NETWORK_TIMEOUT,
+    if not isinstance(
+        data,
+        dict,
+    ):
+        return (
+            None,
+            "Invalid Gemini response",
         )
+
+    candidates = data.get(
+        "candidates"
+    )
+
+    if (
+        isinstance(
+            candidates,
+            list,
+        )
+        and candidates
+    ):
+
+        candidate = candidates[0]
+
+        if isinstance(
+            candidate,
+            dict,
+        ):
+
+            content = candidate.get(
+                "content",
+                {},
+            )
+
+            if isinstance(
+                content,
+                dict,
+            ):
+
+                parts = content.get(
+                    "parts",
+                    [],
+                )
+
+                if isinstance(
+                    parts,
+                    list,
+                ):
+
+                    texts = []
+
+                    for part in parts:
+
+                        if not isinstance(
+                            part,
+                            dict,
+                        ):
+                            continue
+
+                        text = part.get(
+                            "text"
+                        )
+
+                        if (
+                            isinstance(
+                                text,
+                                str,
+                            )
+                            and text.strip()
+                        ):
+
+                            texts.append(
+                                text
+                            )
+
+                    if texts:
+                        return (
+                            "".join(
+                                texts
+                            ).strip(),
+                            None,
+                        )
+
+            reason = candidate.get(
+                "finishReason"
+            )
+
+            if reason:
+
+                return (
+                    None,
+                    (
+                        "Gemini returned "
+                        "no text "
+                        f"(finish reason: "
+                        f"{reason})"
+                    ),
+                )
 
         return (
-            response.ok
-            or response.status_code < 500
+            None,
+            "Gemini returned an empty response",
         )
 
-    except requests.RequestException:
-        return False
+    error_data = data.get(
+        "error"
+    )
 
+    if isinstance(
+        error_data,
+        dict,
+    ):
 
-# ============================================================
-# GEMINI
-# ============================================================
+        message = str(
+            error_data.get(
+                "message",
+                "Unknown Gemini error",
+            )
+        )
+
+        code = error_data.get(
+            "code"
+        )
+
+        if code:
+            message = (
+                f"{message} "
+                f"(HTTP {code})"
+            )
+
+        return (
+            None,
+            message,
+        )
+
+    return (
+        None,
+        "Unknown Gemini response",
+    )
+
 
 def ask_gemini(
     user_text: str,
-    memory: dict,
+    memory: Dict[str, List[str]],
     personality: str,
-    history,
-):
+    history: Sequence[
+        Dict[str, str]
+    ],
+) -> Tuple[
+    Optional[str],
+    Optional[str],
+]:
 
     api_key = os.getenv(
         "GEMINI_API_KEY",
@@ -565,18 +1444,10 @@ def ask_gemini(
             "GEMINI_API_KEY is not set",
         )
 
-    url = (
-        "https://generativelanguage.googleapis.com/"
-        "v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent"
-        f"?key={api_key}"
-    )
-
-    prompt = build_prompt(
-        user_text,
-        memory,
-        personality,
-        history,
+    endpoint = (
+        f"{GEMINI_BASE_URL.rstrip('/')}"
+        f"/models/{GEMINI_MODEL}"
+        ":generateContent"
     )
 
     payload = {
@@ -585,7 +1456,12 @@ def ask_gemini(
                 "role": "user",
                 "parts": [
                     {
-                        "text": prompt
+                        "text": build_prompt(
+                            user_text,
+                            memory,
+                            personality,
+                            history,
+                        )
                     }
                 ],
             }
@@ -595,97 +1471,89 @@ def ask_gemini(
     try:
 
         response = session.post(
-            url,
+            endpoint,
+            params={
+                "key": api_key,
+            },
+            headers={
+                "Content-Type":
+                    "application/json",
+            },
             json=payload,
-            timeout=60,
+            timeout=GEMINI_TIMEOUT,
         )
 
-        data = response.json()
+        try:
 
-        candidates = data.get(
-            "candidates",
-            [],
-        )
+            data = response.json()
 
-        if candidates:
+        except ValueError:
 
-            content = candidates[0].get(
-                "content",
-                {},
+            return (
+                None,
+                (
+                    "Gemini returned "
+                    "invalid JSON "
+                    f"(HTTP "
+                    f"{response.status_code})"
+                ),
             )
 
-            parts = content.get(
-                "parts",
-                [],
+        if not response.ok:
+
+            _, error = (
+                parse_gemini_response(
+                    data
+                )
             )
 
-            for part in parts:
+            return (
+                None,
+                error
+                or (
+                    "Gemini request "
+                    "failed "
+                    f"(HTTP "
+                    f"{response.status_code})"
+                ),
+            )
 
-                text = part.get(
-                    "text",
-                    "",
-                ).strip()
-
-                if text:
-                    return (
-                        text,
-                        None,
-                    )
-
-        error = (
+        return parse_gemini_response(
             data
-            .get("error", {})
-            .get(
-                "message",
-                "Unknown Gemini error",
-            )
         )
+
+    except requests.Timeout:
 
         return (
             None,
-            error,
+            "Gemini request timed out",
+        )
+
+    except requests.ConnectionError:
+
+        return (
+            None,
+            "Unable to connect to Gemini",
         )
 
     except requests.RequestException as exc:
 
         return (
             None,
-            str(exc),
-        )
-
-    except ValueError as exc:
-
-        return (
-            None,
-            f"Invalid Gemini response: {exc}",
+            f"Gemini network error: {exc}",
         )
 
     except Exception as exc:
 
         return (
             None,
-            str(exc),
+            f"Gemini error: {exc}",
         )
 
 
 # ============================================================
-# LOCAL QWEN
+# E.V. // QWEN
 # ============================================================
-
-def find_llama_cli():
-
-    configured = os.getenv(
-        "JARVIS_LLAMA_CLI",
-        "",
-    ).strip()
-
-    if configured:
-        return configured
-
-    return shutil.which(
-        "llama-cli"
-    )
-
 
 def extract_llama_answer(
     stdout: str,
@@ -698,8 +1566,11 @@ def extract_llama_answer(
 
     prompt_indices = [
         index
-        for index, line in enumerate(lines)
-        if line.lstrip().startswith(">")
+        for index, line
+        in enumerate(lines)
+        if line.lstrip().startswith(
+            ">"
+        )
     ]
 
     if not prompt_indices:
@@ -713,7 +1584,9 @@ def extract_llama_answer(
             if not stripped:
                 continue
 
-            if stripped.startswith(
+            lowered = stripped.lower()
+
+            if lowered.startswith(
                 "llama_"
             ):
                 continue
@@ -723,11 +1596,12 @@ def extract_llama_answer(
             )
 
         return "\n".join(
-            cleaned[-8:]
+            cleaned[-12:]
         ).strip()
 
     start = (
-        prompt_indices[-1] + 1
+        prompt_indices[-1]
+        + 1
     )
 
     answer_lines = []
@@ -741,7 +1615,9 @@ def extract_llama_answer(
         ):
             break
 
-        if line.lstrip().startswith(">"):
+        if line.lstrip().startswith(
+            ">"
+        ):
             break
 
         if stripped:
@@ -756,11 +1632,16 @@ def extract_llama_answer(
 
 def ask_qwen(
     user_text: str,
-    memory: dict,
+    memory: Dict[str, List[str]],
     personality: str,
-    history,
+    history: Sequence[
+        Dict[str, str]
+    ],
     threads: str,
-):
+) -> Tuple[
+    Optional[str],
+    Optional[str],
+]:
 
     if not MODEL_FILE.is_file():
 
@@ -771,11 +1652,17 @@ def ask_qwen(
 
     llama_cli = find_llama_cli()
 
-    if not llama_cli:
+    if llama_cli is None:
 
         return (
             None,
-            "llama-cli was not found in PATH",
+            (
+                "llama-cli was not "
+                "found in PATH. "
+                "Set "
+                "JARVIS_LLAMA_CLI "
+                "if needed."
+            ),
         )
 
     prompt = build_prompt(
@@ -797,6 +1684,8 @@ def ask_qwen(
         str(DEFAULT_CTX),
         "-t",
         str(threads),
+        "--temp",
+        str(DEFAULT_TEMPERATURE),
     ]
 
     try:
@@ -805,49 +1694,33 @@ def ask_qwen(
             command,
             capture_output=True,
             text=True,
-            timeout=180,
             encoding="utf-8",
             errors="replace",
-        )
-
-        answer = extract_llama_answer(
-            result.stdout
-        )
-
-        if answer:
-            return (
-                answer,
-                None,
-            )
-
-        stderr = (
-            result.stderr.strip()
-        )
-
-        if stderr:
-            return (
-                None,
-                stderr,
-            )
-
-        if result.returncode != 0:
-
-            return (
-                None,
-                "llama-cli exited with "
-                f"code {result.returncode}",
-            )
-
-        return (
-            None,
-            "Qwen returned an empty response",
+            timeout=QWEN_TIMEOUT,
         )
 
     except subprocess.TimeoutExpired:
 
         return (
             None,
-            "Qwen timed out",
+            (
+                "Qwen timed out after "
+                f"{QWEN_TIMEOUT} seconds"
+            ),
+        )
+
+    except FileNotFoundError:
+
+        return (
+            None,
+            f"Unable to execute: {llama_cli}",
+        )
+
+    except PermissionError:
+
+        return (
+            None,
+            f"Permission denied: {llama_cli}",
         )
 
     except OSError as exc:
@@ -861,12 +1734,278 @@ def ask_qwen(
 
         return (
             None,
-            str(exc),
+            f"Qwen error: {exc}",
         )
+
+    answer = extract_llama_answer(
+        result.stdout
+    )
+
+    if answer:
+        return (
+            answer,
+            None,
+        )
+
+    stderr = (
+        result.stderr.strip()
+    )
+
+    if stderr:
+
+        return (
+            None,
+            stderr,
+        )
+
+    if result.returncode != 0:
+
+        return (
+            None,
+            (
+                "llama-cli exited "
+                f"with code "
+                f"{result.returncode}"
+            ),
+        )
+
+    return (
+        None,
+        "Qwen returned an empty response",
+    )
 
 
 # ============================================================
-# STATUS
+# E.V. // PROVIDER ROUTING
+# ============================================================
+
+def choose_mode(
+    runtime_mode: str,
+) -> str:
+
+    if runtime_mode in {
+        "gemini",
+        "qwen",
+    }:
+
+        return runtime_mode
+
+    if (
+        gemini_key_present()
+        and internet_available()
+    ):
+
+        return "gemini"
+
+    return "qwen"
+
+
+def request_ai(
+    prompt: str,
+    state: Dict[str, Any],
+    personality: str,
+) -> Tuple[
+    Optional[str],
+    Optional[str],
+    Optional[str],
+]:
+
+    selected_mode = choose_mode(
+        state["mode"]
+    )
+
+    memory = state["memory"]
+    history = state["history"]
+    threads = state["threads"]
+
+    if selected_mode == "gemini":
+
+        print(
+            center_text(
+                color(
+                    (
+                        f"╭─ "
+                        f"{glyph('network')} "
+                        "E.V. // GEMINI "
+                        "─╮"
+                    ),
+                    "purple",
+                )
+            )
+        )
+
+        answer, error = ask_gemini(
+            prompt,
+            memory,
+            personality,
+            history,
+        )
+
+        if answer is not None:
+
+            return (
+                answer,
+                "gemini",
+                None,
+            )
+
+        print(
+            center_text(
+                color(
+                    (
+                        f"│ "
+                        f"{glyph('cross')} "
+                        f"Gemini failed: "
+                        f"{error}"
+                    ),
+                    "red",
+                )
+            )
+        )
+
+        if qwen_ready():
+
+            print(
+                center_text(
+                    color(
+                        (
+                            "╰─ "
+                            f"{glyph('arrow')} "
+                            "falling back "
+                            "to local Qwen "
+                            "─╯"
+                        ),
+                        "blue",
+                    )
+                )
+            )
+
+            answer, qwen_error = (
+                ask_qwen(
+                    prompt,
+                    memory,
+                    personality,
+                    history,
+                    threads,
+                )
+            )
+
+            if answer is not None:
+
+                return (
+                    answer,
+                    "qwen",
+                    None,
+                )
+
+            return (
+                None,
+                "qwen",
+                qwen_error,
+            )
+
+        return (
+            None,
+            "gemini",
+            error,
+        )
+
+    print(
+        center_text(
+            color(
+                (
+                    f"╭─ "
+                    f"{glyph('brain')} "
+                    "E.V. // QWEN "
+                    "─╮"
+                ),
+                "blue",
+            )
+        )
+    )
+
+    answer, qwen_error = ask_qwen(
+        prompt,
+        memory,
+        personality,
+        history,
+        threads,
+    )
+
+    if answer is not None:
+
+        return (
+            answer,
+            "qwen",
+            None,
+        )
+
+    print(
+        center_text(
+            color(
+                (
+                    f"│ "
+                    f"{glyph('cross')} "
+                    f"Qwen failed: "
+                    f"{qwen_error}"
+                ),
+                "red",
+            )
+        )
+    )
+
+    if (
+        gemini_key_present()
+        and internet_available()
+    ):
+
+        print(
+            center_text(
+                color(
+                    (
+                        "╰─ "
+                        f"{glyph('arrow')} "
+                        "falling back "
+                        "to Gemini "
+                        "─╯"
+                    ),
+                    "purple",
+                )
+            )
+        )
+
+        answer, gemini_error = (
+            ask_gemini(
+                prompt,
+                memory,
+                personality,
+                history,
+            )
+        )
+
+        if answer is not None:
+
+            return (
+                answer,
+                "gemini",
+                None,
+            )
+
+        return (
+            None,
+            "gemini",
+            gemini_error,
+        )
+
+    return (
+        None,
+        "qwen",
+        qwen_error,
+    )
+
+
+# ============================================================
+# E.V. // STATUS
 # ============================================================
 
 def print_status(
@@ -874,56 +2013,81 @@ def print_status(
     threads: str,
 ) -> None:
 
-    online = internet_available()
-
-    network = (
-        "online"
-        if online
-        else "offline"
+    gemini_ready = (
+        gemini_key_present()
     )
 
-    gemini = (
-        "ready"
-        if os.getenv(
-            "GEMINI_API_KEY",
-            "",
-        ).strip()
-        else "missing"
+    network_ready = (
+        internet_available()
     )
 
-    qwen_model = (
-        "present"
-        if MODEL_FILE.is_file()
-        else "missing"
+    qwen_model_ready = (
+        qwen_model_present()
     )
 
-    llama = (
-        "ready"
-        if find_llama_cli()
-        else "missing"
+    llama_ready = (
+        find_llama_cli()
+        is not None
     )
 
-    print(
-        color(
-            "[status] "
-            f"mode={mode} | "
-            f"net={network} | "
-            f"gemini={gemini} | "
-            f"qwen={qwen_model} | "
-            f"llama-cli={llama} | "
-            f"threads={threads}",
-            "dim",
-        )
+    print_box(
+        "SYSTEM STATUS",
+        [
+            (
+                f"{glyph('core')} core         : "
+                f"{color('ONLINE', 'green')}"
+            ),
+            (
+                f"{glyph('network')} network      : "
+                f"{'online' if network_ready else 'offline'}"
+            ),
+            (
+                f"{glyph('network')} Gemini       : "
+                f"{readiness(gemini_ready)}"
+            ),
+            (
+                f"{glyph('brain')} Qwen model   : "
+                f"{readiness(qwen_model_ready)}"
+            ),
+            (
+                f"{glyph('terminal')} llama-cli    : "
+                f"{readiness(llama_ready)}"
+            ),
+            (
+                f"{glyph('diamond')} mode         : "
+                f"{mode}"
+            ),
+            (
+                f"{glyph('cpu')} threads      : "
+                f"{threads}"
+            ),
+            (
+                f"{glyph('brain')} context      : "
+                f"{DEFAULT_CTX}"
+            ),
+            (
+                f"{glyph('arrow')} max tokens   : "
+                f"{DEFAULT_TOKENS}"
+            ),
+            (
+                f"{glyph('spark')} temperature  : "
+                f"{DEFAULT_TEMPERATURE}"
+            ),
+            (
+                f"{glyph('diamond')} version      : "
+                f"{APP_VERSION}"
+            ),
+        ],
     )
 
 
 # ============================================================
-# COMMANDS
+# E.V. // COMMANDS
 # ============================================================
 
 def handle_command(
     command: str,
-    state: dict,
+    state: Dict[str, Any],
 ) -> bool:
 
     parts = (
@@ -933,6 +2097,9 @@ def handle_command(
             maxsplit=1
         )
     )
+
+    if not parts:
+        return True
 
     cmd = parts[0].lower()
 
@@ -944,6 +2111,7 @@ def handle_command(
         "/exit",
         "/quit",
     }:
+
         raise KeyboardInterrupt
 
     # --------------------------------------------------------
@@ -959,12 +2127,22 @@ def handle_command(
             "history"
         ].clear()
 
-        print(
-            color(
-                "Session cleared.",
-                "green",
-            )
+        clear_screen()
+        print_logo()
+
+        print()
+
+        print_box(
+            "SESSION",
+            [
+                (
+                    f"{glyph('check')} "
+                    "conversation cleared"
+                )
+            ],
         )
+
+        print()
 
         return True
 
@@ -976,12 +2154,27 @@ def handle_command(
 
         if len(parts) == 1:
 
-            print(
-                color(
-                    f"Current mode: "
-                    f"{state['mode']}",
-                    "yellow",
-                )
+            print_box(
+                "MODEL CONTROL",
+                [
+                    (
+                        f"{glyph('diamond')} "
+                        f"current: "
+                        f"{state['mode']}"
+                    ),
+                    (
+                        f"{glyph('chevron')} "
+                        "/model auto"
+                    ),
+                    (
+                        f"{glyph('chevron')} "
+                        "/model gemini"
+                    ),
+                    (
+                        f"{glyph('chevron')} "
+                        "/model qwen"
+                    ),
+                ],
             )
 
             return True
@@ -1003,20 +2196,30 @@ def handle_command(
             ] = value
 
             print(
-                color(
-                    f"Mode set to: {value}",
-                    "green",
+                center_text(
+                    color(
+                        (
+                            f"{glyph('check')} "
+                            f"model mode "
+                            f"→ {value}"
+                        ),
+                        "green",
+                    )
                 )
             )
 
         else:
 
             print(
-                color(
-                    "Use /model auto, "
-                    "/model gemini, "
-                    "or /model qwen",
-                    "red",
+                center_text(
+                    color(
+                        (
+                            f"{glyph('cross')} "
+                            "valid modes: "
+                            "auto, gemini, qwen"
+                        ),
+                        "red",
+                    )
                 )
             )
 
@@ -1050,33 +2253,33 @@ def handle_command(
 
         if not facts:
 
-            print(
-                color(
-                    "Memory is empty.",
-                    "yellow",
-                )
+            print_box(
+                "E.V. MEMORY",
+                [
+                    (
+                        f"{glyph('dot')} "
+                        "memory is empty"
+                    )
+                ],
             )
 
         else:
 
-            print(
-                color(
-                    "E.V. Memory:",
-                    "cyan",
-                )
-            )
+            memory_lines = []
 
             for index, fact in enumerate(
                 facts,
                 1,
             ):
 
-                print(
-                    color(
-                        f"  {index}. {fact}",
-                        "white",
-                    )
+                memory_lines.append(
+                    f"{index:02d}  {fact}"
                 )
+
+            print_box(
+                "E.V. MEMORY",
+                memory_lines,
+            )
 
         return True
 
@@ -1092,9 +2295,15 @@ def handle_command(
         ):
 
             print(
-                color(
-                    "Use /remember <fact>",
-                    "red",
+                center_text(
+                    color(
+                        (
+                            f"{glyph('cross')} "
+                            "usage: "
+                            "/remember <fact>"
+                        ),
+                        "red",
+                    )
                 )
             )
 
@@ -1111,16 +2320,21 @@ def handle_command(
             fact
         )
 
-        save_memory(
+        if save_memory(
             state["memory"]
-        )
+        ):
 
-        print(
-            color(
-                "Memory saved.",
-                "green",
+            print(
+                center_text(
+                    color(
+                        (
+                            f"{glyph('check')} "
+                            "memory saved"
+                        ),
+                        "green",
+                    )
+                )
             )
-        )
 
         return True
 
@@ -1136,10 +2350,16 @@ def handle_command(
         ):
 
             print(
-                color(
-                    "Use /forget all "
-                    "or /forget <number>",
-                    "red",
+                center_text(
+                    color(
+                        (
+                            f"{glyph('cross')} "
+                            "usage: "
+                            "/forget <number> "
+                            "| /forget all"
+                        ),
+                        "red",
+                    )
                 )
             )
 
@@ -1169,9 +2389,14 @@ def handle_command(
             )
 
             print(
-                color(
-                    "Memory cleared.",
-                    "green",
+                center_text(
+                    color(
+                        (
+                            f"{glyph('check')} "
+                            "all memory cleared"
+                        ),
+                        "green",
+                    )
                 )
             )
 
@@ -1180,10 +2405,15 @@ def handle_command(
         if target.isdigit():
 
             index = (
-                int(target) - 1
+                int(target)
+                - 1
             )
 
-            if 0 <= index < len(facts):
+            if (
+                0
+                <= index
+                < len(facts)
+            ):
 
                 removed = facts.pop(
                     index
@@ -1194,19 +2424,30 @@ def handle_command(
                 )
 
                 print(
-                    color(
-                        f"Forgot: {removed}",
-                        "green",
+                    center_text(
+                        color(
+                            (
+                                f"{glyph('check')} "
+                                f"forgot: "
+                                f"{removed}"
+                            ),
+                            "green",
+                        )
                     )
                 )
 
             else:
 
                 print(
-                    color(
-                        "No memory item "
-                        "at that number.",
-                        "red",
+                    center_text(
+                        color(
+                            (
+                                f"{glyph('cross')} "
+                                f"no memory item "
+                                f"at {target}"
+                            ),
+                            "red",
+                        )
                     )
                 )
 
@@ -1215,8 +2456,29 @@ def handle_command(
         filtered = [
             fact
             for fact in facts
-            if target not in fact.lower()
+            if target
+            not in fact.lower()
         ]
+
+        if (
+            len(filtered)
+            == len(facts)
+        ):
+
+            print(
+                center_text(
+                    color(
+                        (
+                            f"{glyph('dot')} "
+                            "no matching "
+                            "memory found"
+                        ),
+                        "yellow",
+                    )
+                )
+            )
+
+            return True
 
         state[
             "memory"
@@ -1227,9 +2489,15 @@ def handle_command(
         )
 
         print(
-            color(
-                "Filtered memory.",
-                "green",
+            center_text(
+                color(
+                    (
+                        f"{glyph('check')} "
+                        "matching memory "
+                        "removed"
+                    ),
+                    "green",
+                )
             )
         )
 
@@ -1243,163 +2511,74 @@ def handle_command(
 
         print()
 
-        print_centered(
-            "╭────────────────────────────────────────────╮",
-            "purple",
-        )
-
-        print_centered(
-            "│             E . V .  //  HELP             │",
-            "cyan",
-        )
-
-        print_centered(
-            "╰────────────────────────────────────────────╯",
-            "purple",
-        )
-
-        print()
-
-        print(
-            color(
-                "  MODEL CONTROL",
-                "magenta",
-            )
-        )
-
-        print(
-            "  "
-            + color(
-                "/model auto",
-                "white",
-            )
-            + "      Automatic Gemini ↔ Qwen"
-        )
-
-        print(
-            "  "
-            + color(
-                "/model gemini",
-                "white",
-            )
-            + "    Force Gemini 🌐"
-        )
-
-        print(
-            "  "
-            + color(
-                "/model qwen",
-                "white",
-            )
-            + "      Force local Qwen 🧠"
-        )
-
-        print()
-
-        print(
-            color(
-                "  MEMORY",
-                "magenta",
-            )
-        )
-
-        print(
-            "  "
-            + color(
-                "/memory",
-                "white",
-            )
-            + "            Show memories"
-        )
-
-        print(
-            "  "
-            + color(
-                "/remember <fact>",
-                "white",
-            )
-            + "  Save a memory"
-        )
-
-        print(
-            "  "
-            + color(
-                "/forget <number>",
-                "white",
-            )
-            + " Remove a memory"
-        )
-
-        print(
-            "  "
-            + color(
-                "/forget all",
-                "white",
-            )
-            + "       Clear memory"
+        print_box(
+            "E.V. // COMMAND MATRIX",
+            [
+                (
+                    f"{glyph('diamond')} "
+                    "MODEL CONTROL"
+                ),
+                (
+                    "  /model auto"
+                    "       automatic "
+                    "Gemini ↔ Qwen"
+                ),
+                (
+                    "  /model gemini"
+                    "     force Gemini"
+                ),
+                (
+                    "  /model qwen"
+                    "       force local Qwen"
+                ),
+                "",
+                (
+                    f"{glyph('diamond')} "
+                    "MEMORY"
+                ),
+                (
+                    "  /memory"
+                    "             show memories"
+                ),
+                (
+                    "  /remember <fact>"
+                    "   save a memory"
+                ),
+                (
+                    "  /forget <number>"
+                    "   remove a memory"
+                ),
+                (
+                    "  /forget all"
+                    "        clear memory"
+                ),
+                "",
+                (
+                    f"{glyph('diamond')} "
+                    "SESSION"
+                ),
+                (
+                    "  /clear"
+                    "              clear conversation"
+                ),
+                (
+                    "  /status"
+                    "             system diagnostics"
+                ),
+                (
+                    "  /help"
+                    "               show this matrix"
+                ),
+                (
+                    "  /exit"
+                    "               shut down E.V."
+                ),
+            ],
         )
 
         print()
 
-        print(
-            color(
-                "  SESSION",
-                "magenta",
-            )
-        )
-
-        print(
-            "  "
-            + color(
-                "/clear",
-                "white",
-            )
-            + "             Clear conversation"
-        )
-
-        print(
-            "  "
-            + color(
-                "/status",
-                "white",
-            )
-            + "            System status"
-        )
-
-        print(
-            "  "
-            + color(
-                "/help",
-                "white",
-            )
-            + "              Show this menu"
-        )
-
-        print(
-            "  "
-            + color(
-                "/exit",
-                "white",
-            )
-            + "              Shut down E.V."
-        )
-
-        print()
-
-        print_centered(
-            "╭────────────────────────────────────────────╮",
-            "purple",
-        )
-
-        print_centered(
-            "│ Gemini 🌐 Cloud AI  │  Qwen 🧠 Local AI  │",
-            "cyan",
-        )
-
-        print_centered(
-            "╰────────────────────────────────────────────╯",
-            "purple",
-        )
+        print_mascot()
 
         print()
 
@@ -1410,9 +2589,15 @@ def handle_command(
     # --------------------------------------------------------
 
     print(
-        color(
-            "Unknown command. Try /help",
-            "red",
+        center_text(
+            color(
+                (
+                    f"{glyph('cross')} "
+                    "unknown command — "
+                    "try /help"
+                ),
+                "red",
+            )
         )
     )
 
@@ -1420,49 +2605,11 @@ def handle_command(
 
 
 # ============================================================
-# MEMORY SAVE
-# ============================================================
-
-def save_memory(
-    memory: dict,
-) -> None:
-
-    save_json(
-        MEMORY_FILE,
-        memory,
-    )
-
-
-# ============================================================
-# MODEL SELECTION
-# ============================================================
-
-def choose_mode(
-    runtime_mode: str,
-    api_key_present: bool,
-) -> str:
-
-    if runtime_mode in {
-        "gemini",
-        "qwen",
-    }:
-        return runtime_mode
-
-    if (
-        api_key_present
-        and internet_available()
-    ):
-        return "gemini"
-
-    return "qwen"
-
-
-# ============================================================
-# CHAT
+# E.V. // CHAT LOOP
 # ============================================================
 
 def run_chat(
-    state: dict,
+    state: Dict[str, Any],
     personality: str,
 ) -> None:
 
@@ -1472,7 +2619,10 @@ def run_chat(
 
             prompt = input(
                 color(
-                    "You > ",
+                    (
+                        f"{glyph('terminal')} "
+                        " You › "
+                    ),
                     "cyan",
                 )
             ).strip()
@@ -1481,157 +2631,82 @@ def run_chat(
                 continue
 
             if prompt.startswith("/"):
-
                 handle_command(
                     prompt,
                     state,
                 )
+                continue
+
+            print()
+
+            answer, provider, error = (
+                request_ai(
+                    prompt,
+                    state,
+                    personality,
+                )
+            )
+
+            if answer is None:
+
+                print_box(
+                    "E.V. // ERROR",
+                    [
+                        (
+                            f"{glyph('cross')} "
+                            f"provider: "
+                            f"{provider or 'unknown'}"
+                        ),
+                        (
+                            f"{glyph('cross')} "
+                            f"reason: "
+                            f"{error or 'unknown error'}"
+                        ),
+                    ],
+                )
+
+                print()
 
                 continue
 
-            api_key_present = bool(
-                os.getenv(
-                    "GEMINI_API_KEY",
-                    "",
-                ).strip()
+            provider_name = (
+                "GEMINI"
+                if provider
+                == "gemini"
+                else "QWEN"
             )
 
-            mode = choose_mode(
-                state["mode"],
-                api_key_present,
+            provider_color = (
+                "purple"
+                if provider
+                == "gemini"
+                else "blue"
             )
 
-            # =================================================
-            # GEMINI FIRST
-            # =================================================
+            print(
+                center_text(
+                    color(
+                        (
+                            f"╭─ E.V. // "
+                            f"{provider_name} ─╮"
+                        ),
+                        provider_color,
+                    )
+                )
+            )
 
-            if mode == "gemini":
+            print()
+
+            for line in answer.splitlines():
 
                 print(
                     color(
-                        "\n[E.V. // Gemini 🌐]\n",
-                        "purple",
+                        line,
+                        "white",
                     )
                 )
 
-                answer, error = ask_gemini(
-                    prompt,
-                    state["memory"],
-                    personality,
-                    state["history"],
-                )
-
-                if answer is None:
-
-                    print(
-                        color(
-                            f"Gemini failed: {error}",
-                            "red",
-                        )
-                    )
-
-                    print(
-                        color(
-                            "\n[E.V. // Qwen fallback 🧠]\n",
-                            "blue",
-                        )
-                    )
-
-                    answer, qwen_error = ask_qwen(
-                        prompt,
-                        state["memory"],
-                        personality,
-                        state["history"],
-                        state["threads"],
-                    )
-
-                    if answer is None:
-
-                        print(
-                            color(
-                                f"Qwen failed: {qwen_error}",
-                                "red",
-                            )
-                        )
-
-                        continue
-
-            # =================================================
-            # QWEN FIRST
-            # =================================================
-
-            else:
-
-                print(
-                    color(
-                        "\n[E.V. // Qwen 🧠]\n",
-                        "blue",
-                    )
-                )
-
-                answer, qwen_error = ask_qwen(
-                    prompt,
-                    state["memory"],
-                    personality,
-                    state["history"],
-                    state["threads"],
-                )
-
-                if answer is None:
-
-                    if (
-                        api_key_present
-                        and internet_available()
-                    ):
-
-                        print(
-                            color(
-                                f"Qwen failed: {qwen_error}",
-                                "red",
-                            )
-                        )
-
-                        print(
-                            color(
-                                "\n[E.V. // Gemini fallback 🌐]\n",
-                                "purple",
-                            )
-                        )
-
-                        answer, error = ask_gemini(
-                            prompt,
-                            state["memory"],
-                            personality,
-                            state["history"],
-                        )
-
-                        if answer is None:
-
-                            print(
-                                color(
-                                    f"Gemini failed: {error}",
-                                    "red",
-                                )
-                            )
-
-                            continue
-
-                    else:
-
-                        print(
-                            color(
-                                f"Qwen failed: {qwen_error}",
-                                "red",
-                            )
-                        )
-
-                        continue
-
-            # =================================================
-            # OUTPUT
-            # =================================================
-
-            print(answer)
+            print()
 
             state[
                 "history"
@@ -1659,38 +2734,58 @@ def run_chat(
 
         except KeyboardInterrupt:
 
-            print(
-                "\n\n"
-                + color(
-                    "E.V. shutting down... 👋",
-                    "green",
-                )
+            print()
+
+            print_box(
+                "E.V. // OFFLINE",
+                [
+                    (
+                        f"{glyph('spark')} "
+                        "neural core standing by"
+                    ),
+                    (
+                        f"{glyph('check')} "
+                        "session terminated cleanly"
+                    ),
+                ],
             )
+
+            print()
 
             return
 
         except EOFError:
 
-            print(
-                "\n\n"
-                + color(
-                    "E.V. shutting down... 👋",
-                    "green",
-                )
-            )
+            print()
 
             return
 
+        except Exception as exc:
+
+            print()
+
+            print_box(
+                "UNEXPECTED ERROR",
+                [
+                    (
+                        f"{glyph('cross')} "
+                        f"{exc}"
+                    )
+                ],
+            )
+
+            print()
+
 
 # ============================================================
-# MAIN
+# E.V. // ARGUMENTS
 # ============================================================
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description=(
-            "E.V. - Enhanced Virtuality"
+            "E.V. — Enhanced Virtuality"
         )
     )
 
@@ -1706,7 +2801,8 @@ def main() -> int:
             "auto",
         ).lower(),
         help=(
-            "Choose auto, gemini, or qwen"
+            "choose auto, gemini, "
+            "or qwen"
         ),
     )
 
@@ -1714,15 +2810,38 @@ def main() -> int:
         "--threads",
         default=DEFAULT_THREADS,
         help=(
-            "CPU threads for Qwen"
+            "CPU threads for local Qwen"
         ),
     )
 
+    parser.add_argument(
+        "--no-banner",
+        action="store_true",
+        help=(
+            "skip the E.V. startup UI"
+        ),
+    )
+
+    return parser
+
+
+# ============================================================
+# E.V. // MAIN
+# ============================================================
+
+def main() -> int:
+
+    parser = build_parser()
+
     args = parser.parse_args()
 
-    personality = (
-        load_personality()
-    )
+    personality = load_personality()
+
+    if not personality:
+        personality = (
+            DEFAULT_PERSONALITY
+            .strip()
+        )
 
     memory = normalize_memory(
         load_json(
@@ -1733,7 +2852,10 @@ def main() -> int:
         )
     )
 
-    state = {
+    state: Dict[
+        str,
+        Any,
+    ] = {
         "mode": args.model,
         "threads": str(
             args.threads
@@ -1742,14 +2864,16 @@ def main() -> int:
         "history": [],
     }
 
-    banner()
+    if not args.no_banner:
 
-    print_status(
-        state["mode"],
-        state["threads"],
-    )
+        startup()
 
-    print()
+        print_status(
+            state["mode"],
+            state["threads"],
+        )
+
+        print()
 
     run_chat(
         state,
@@ -1764,6 +2888,8 @@ def main() -> int:
 # ============================================================
 
 if __name__ == "__main__":
+
     raise SystemExit(
         main()
     )
+```
