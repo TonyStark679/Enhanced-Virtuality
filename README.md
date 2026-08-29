@@ -191,15 +191,19 @@ Memory is stored locally in:
 ```
 memory.json
 ```
+
 The memory system allows E.V. to remember information between sessions.
 
 Available memory commands:
 ```
 /memory
 ```
+```
 /remember <fact>
 ```
+```
 /forget <number>
+```
 ```
 /forget all
 ```
@@ -215,7 +219,9 @@ AUTO
 ```
 /model auto
 ```
+
 Automatic mode prefers Gemini and falls back to local Qwen when necessary.
+
 ```
            AUTO
              │
@@ -228,10 +234,12 @@ Automatic mode prefers Gemini and falls back to local Qwen when necessary.
      Gemini   Qwen
 ```
 GEMINI
+
 ```
 /model gemini
 ```
 Forces E.V. to use Gemini.
+
 ```
 E.V.
  │
@@ -241,12 +249,15 @@ E.V.
  ▼
 Response
 ```
+
 QWEN
 
+```
 /model qwen
 ```
-Forces E.V. to use the local Qwen engine.
 
+Forces E.V. to use the local Qwen engine.
+```
 E.V.
  │
  ▼
@@ -256,6 +267,7 @@ E.V.
 Response
 ```
 You can also choose a model when launching E.V.
+
 ```
 python jarvis.py --model gemini
 ```
