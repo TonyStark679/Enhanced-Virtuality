@@ -22,7 +22,7 @@ The philosophy is simple:
 - ⚙️ Manual model selection
 - 📱 Built specifically for Android + Termux
 - 🖥️ Fully terminal-based
-- 🔐 Local ".env" configuration
+- 🔐 Local environment configuration
 - 📴 Offline-capable through local Qwen
 - ⚡ Lightweight architecture
 - ☁️ No mandatory cloud dependency for local mode
@@ -58,7 +58,9 @@ When Gemini mode is active and a valid API key is available, E.V. sends the conv
 
 Qwen is E.V.'s local AI engine.
 
-E.V. runs a compatible Qwen GGUF model locally through "llama-cli".
+E.V. runs a compatible Qwen GGUF model locally through:
+
+llama-cli
 
 Because the model runs directly on the device, Qwen mode can operate without an internet connection.
 
@@ -66,7 +68,11 @@ Because the model runs directly on the device, Qwen mode can operate without an 
 
 🔄 Automatic Fallback
 
-In "auto" mode, E.V. attempts to use Gemini first.
+In:
+
+auto
+
+mode, E.V. attempts to use Gemini first.
 
 If Gemini is unavailable, E.V. can switch to the local Qwen engine.
 
@@ -79,15 +85,13 @@ flowchart TD
     C --> E["⚡ E.V. Response"]
     D --> E
 
-This allows E.V. to remain useful even when the internet disappears.
-
 Wi-Fi down? Qwen clocks in. 🫡
 
 ---
 
 🎭 Personality
 
-E.V.'s personality is stored separately from the Python source code:
+E.V.'s personality is stored separately from the Python source code.
 
 personality.txt
 
@@ -116,7 +120,9 @@ Supported memory commands include:
 /forget <number>
 /forget all
 
-Memory remains on the device and is excluded from Git through ".gitignore".
+Memory remains on the device and is excluded from Git through:
+
+.gitignore
 
 ---
 
@@ -170,7 +176,7 @@ The Qwen model is not included in this repository because GGUF model files can b
 
 You must provide your own compatible model.
 
-The default configuration expects:
+The default model filename is:
 
 Qwen2.5-3B-Instruct-Q4_K_M.gguf
 
@@ -181,6 +187,9 @@ Qwen2.5-3B-Instruct-Q4_K_M.gguf
 1. Clone the repository
 
 git clone https://github.com/TonyStark679/Tarmix-Jarvis-for-termux-
+
+Enter the project directory:
+
 cd Tarmix-Jarvis-for-termux-
 
 2. Install Python dependencies
@@ -195,18 +204,26 @@ cp .env.example .env
 
 4. Configure Gemini
 
-Open ".env" and add your Gemini API key:
+Open:
+
+.env
+
+and add your Gemini API key:
 
 GEMINI_API_KEY=your_gemini_api_key_here
 JARVIS_MODEL=auto
 
-«Important: Never publish your real API key.»
+«⚠️ Important: Never publish your real API key.»
 
 ---
 
 🧠 Setting Up Local Qwen
 
-E.V. uses "llama-cli" to run the local GGUF model.
+E.V. uses:
+
+llama-cli
+
+to run the local GGUF model.
 
 Create the model directory if necessary:
 
@@ -224,7 +241,11 @@ Check that the model exists:
 
 ls -lh ~/jarvis/models/
 
-Then check whether "llama-cli" is available:
+Then check whether:
+
+llama-cli
+
+is available:
 
 which llama-cli
 
@@ -298,7 +319,7 @@ Tarmix-Jarvis-for-termux/
 └── models/
     └── *.gguf
 
-Main files
+Main Files
 
 File| Purpose
 "jarvis.py"| Main E.V. application
@@ -336,16 +357,19 @@ Immediately:
 
 1. Revoke the exposed key.
 2. Generate a new key.
-3. Replace the key in ".env".
+3. Replace the key in:
+
+.env
+
 4. Make sure the old key is not committed to Git.
 
 ---
 
 🛠️ Troubleshooting
 
-🌐 Gemini isn't working
+🌐 Gemini Isn't Working
 
-Check your ".env" file:
+Check your environment file:
 
 cat .env
 
@@ -363,13 +387,17 @@ JARVIS_MODEL=gemini
 
 ---
 
-🧠 Qwen isn't working
+🧠 Qwen Isn't Working
 
 Check that the model exists:
 
 ls -lh ~/jarvis/models/
 
-Then check "llama-cli":
+Then check:
+
+llama-cli
+
+with:
 
 which llama-cli
 
@@ -379,7 +407,7 @@ python jarvis.py --model qwen
 
 ---
 
-🔍 Check repository state
+🔍 Check Repository State
 
 git status
 
