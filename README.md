@@ -1,260 +1,247 @@
-# ⚡ E.V. | Enhanced Virtuality
+⚡ E.V. | Enhanced Virtuality
 
-> A personal hybrid AI assistant for Termux with automatic **Gemini ↔ local Qwen** fallback.
+«One assistant. Two brains. No Wi-Fi panic.»
 
-**E.V. (Enhanced Virtuality)** is a lightweight personal AI assistant designed to run directly on Android through **Termux**.
+E.V. (Enhanced Virtuality) is a lightweight personal AI assistant built for Android + Termux.
 
-E.V. combines a cloud-based **Gemini** model with a locally running **Qwen 2.5 3B** model, allowing it to remain useful both online and offline.
+E.V. combines Google Gemini for online intelligence with a locally running Qwen 2.5 3B GGUF model for offline use. When configured for automatic mode, E.V. can use Gemini when available and fall back to local Qwen when Gemini cannot be used.
 
 The philosophy is simple:
 
-> **Use the best available brain. 🧠**
-
-When the network is available, E.V. can communicate with Gemini through the Gemini API. When Gemini is unavailable, E.V. can fall back to the local Qwen GGUF model through `llama-cli`.
-
-**One assistant. Two brains. No Wi-Fi panic.** ⚡
+«Use the best available brain. 🧠»
 
 ---
 
-## ✨ Features
+✨ Features
 
-* 🌐 **Gemini integration** for online AI
-* 🧠 **Qwen 2.5 3B** for local/offline AI
-* 🔄 **Automatic Gemini ↔ Qwen fallback**
-* 🎭 Customizable E.V. personality
-* 💾 Persistent local memory
-* ⚙️ Manual model selection
-* 📱 Designed for Android + Termux
-* 🖥️ Fully terminal-based
-* 🔐 API keys stored locally through `.env`
-* 📴 Qwen can operate without an internet connection
-* ⚡ Lightweight architecture with no unnecessary cloud dependency
-
----
-
-## 🧠 How It Works
-
-```
-      ┌─────────────────────┐
-      │  E.V.               │
-      │  Enhanced Virtuality│
-      └──────────┬──────────┘
-                   │
-               Choose Model
-                   │                                            ┌───────────────┴───────────────┐ 
-│                                    │
-AUTO                              MANUAL
-  │                                    │
-Check Gemini                  Gemini / Qwen
-          │
-  ┌──────┴──────┐
-  │               │
-AVAILABLE     UNAVAILABLE
-  │             │
-  ▼             ▼
-🌐 GEMINI       🧠 QWEN
-  Cloud AI       Local GGUF
-  │               │
-  └──────┬──────┘
-          │
-          ▼
-    ⚡ E.V. RESPONSE
-```
+- 🌐 Gemini integration for online AI
+- 🧠 Qwen 2.5 3B for local/offline AI
+- 🔄 Automatic Gemini → Qwen fallback
+- 🎭 Customizable personality
+- 💾 Persistent local memory
+- ⚙️ Manual model selection
+- 📱 Built specifically for Android + Termux
+- 🖥️ Fully terminal-based
+- 🔐 Local ".env" configuration
+- 📴 Offline-capable through local Qwen
+- ⚡ Lightweight architecture
+- ☁️ No mandatory cloud dependency for local mode
 
 ---
 
-## 🧩 Architecture
+🧠 How E.V. Works
 
-E.V. currently consists of two primary AI paths:
+E.V. has two AI engines:
 
-### 🌐 Gemini
+flowchart TD
+    A["⚡ E.V.<br/>Enhanced Virtuality"] --> B{"Choose Model"}
 
-The online AI engine.
+    B -->|AUTO| C["Check Gemini"]
+    B -->|MANUAL| D{"Selected Model"}
 
-E.V. sends the conversation context to Google's Gemini API when Gemini mode is active and a valid API key is available.
+    C -->|Available| E["🌐 GEMINI<br/>Cloud AI"]
+    C -->|Unavailable| F["🧠 QWEN<br/>Local GGUF"]
 
-### 🧠 Qwen
+    D -->|Gemini| E
+    D -->|Qwen| F
 
-The local AI engine.
+    E --> G["⚡ E.V. Response"]
+    F --> G
 
-E.V. runs a compatible Qwen GGUF model locally through `llama-cli`.
+🌐 Gemini
 
-This means Qwen mode does not require an internet connection.
+Gemini is E.V.'s cloud-based AI engine.
+
+When Gemini mode is active and a valid API key is available, E.V. sends the conversation to Google's Gemini API and uses the returned response.
+
+🧠 Qwen
+
+Qwen is E.V.'s local AI engine.
+
+E.V. runs a compatible Qwen GGUF model locally through "llama-cli".
+
+Because the model runs directly on the device, Qwen mode can operate without an internet connection.
 
 ---
 
-## 🎭 Personality
+🔄 Automatic Fallback
 
-E.V.'s behavior is controlled through:
+In "auto" mode, E.V. attempts to use Gemini first.
 
-```text
+If Gemini is unavailable, E.V. can switch to the local Qwen engine.
+
+flowchart TD
+    A["⚡ E.V."] --> B{"Internet / Gemini Available?"}
+
+    B -->|YES| C["🌐 Gemini"]
+    B -->|NO| D["🧠 Local Qwen"]
+
+    C --> E["⚡ E.V. Response"]
+    D --> E
+
+This allows E.V. to remain useful even when the internet disappears.
+
+Wi-Fi down? Qwen clocks in. 🫡
+
+---
+
+🎭 Personality
+
+E.V.'s personality is stored separately from the Python source code:
+
 personality.txt
-```
 
-This allows the assistant's identity and behavior to be modified without changing the Python source code.
+This allows you to modify E.V.'s identity, behavior, and conversational style without modifying the main application.
 
-The default identity is:
+Default identity:
 
-> **E.V. | Enhanced Virtuality**
+E.V. | Enhanced Virtuality
+
+You can customize this file to make E.V. behave the way you want.
 
 ---
 
-## 💾 Memory
+💾 Memory
 
 E.V. includes a lightweight persistent memory system.
 
 Memory is stored locally in:
 
-```text
 memory.json
-```
 
-Built-in commands allow memories to be viewed, added, removed, or completely cleared.
+Supported memory commands include:
 
-Memory remains local and is excluded from Git through `.gitignore`.
+/memory
+/remember <fact>
+/forget <number>
+/forget all
+
+Memory remains on the device and is excluded from Git through ".gitignore".
 
 ---
 
-## ⚙️ Model Modes
+⚙️ Model Modes
 
-E.V. supports three model modes:
+E.V. supports three model modes.
 
-```text
+Automatic
+
 /model auto
-```
 
-Automatically prefers Gemini when available and falls back to Qwen when necessary.
+E.V. prefers Gemini and falls back to Qwen when necessary.
 
-```text
+Gemini
+
 /model gemini
-```
 
-Forces Gemini.
+Forces E.V. to use Gemini.
 
-```text
+Qwen
+
 /model qwen
-```
 
-Forces local Qwen.
+Forces E.V. to use the local Qwen model.
 
-You can also start E.V. directly with:
+You can also select the model when launching E.V.:
 
-```bash
 python jarvis.py --model qwen
-```
 
 or:
 
-```bash
 python jarvis.py --model gemini
-```
 
 ---
 
-## 📦 Requirements
+📦 Requirements
 
 E.V. currently requires:
 
-* 📱 Termux
-* 🐍 Python 3
-* 📦 Python `requests`
-* 🧠 `llama.cpp` / `llama-cli`
-* 🤖 A compatible Qwen GGUF model
-* 🔑 A Gemini API key if Gemini mode is desired
+- 📱 Android
+- 🖥️ Termux
+- 🐍 Python 3
+- 📦 Python "requests"
+- 🧠 "llama.cpp" / "llama-cli"
+- 🤖 A compatible Qwen GGUF model
+- 🔑 A Gemini API key for Gemini mode
 
-### ⚠️ About the Qwen model
+Qwen Model
 
-The Qwen GGUF model is **not included in this repository** because model files can be very large.
+The Qwen model is not included in this repository because GGUF model files can be very large.
 
 You must provide your own compatible model.
 
+The default configuration expects:
+
+Qwen2.5-3B-Instruct-Q4_K_M.gguf
+
 ---
 
-# 🚀 Installation
+🚀 Installation
 
-## 1. Clone the repository
+1. Clone the repository
 
-```bash
 git clone https://github.com/TonyStark679/Tarmix-Jarvis-for-termux-
 cd Tarmix-Jarvis-for-termux-
-```
 
-## 2. Install Python dependencies
+2. Install Python dependencies
 
-```bash
 pip install requests
-```
 
-## 3. Create your environment file
+3. Create the environment file
 
 Copy the provided template:
 
-```bash
 cp .env.example .env
-```
 
-## 4. Configure Gemini
+4. Configure Gemini
 
-Open `.env` and add your Gemini API key:
+Open ".env" and add your Gemini API key:
 
-```text
 GEMINI_API_KEY=your_gemini_api_key_here
 JARVIS_MODEL=auto
-```
 
-### 🔐 Security
-
-**Never share or commit your real API key.**
-
-The `.env` file is intentionally excluded from Git.
+«Important: Never publish your real API key.»
 
 ---
 
-# 🧠 Setting Up Qwen
+🧠 Setting Up Local Qwen
 
-E.V. uses a local GGUF model through `llama-cli`.
+E.V. uses "llama-cli" to run the local GGUF model.
 
-Place your model inside:
+Create the model directory if necessary:
 
-```text
+mkdir -p ~/jarvis/models
+
+Place your Qwen GGUF model inside:
+
 ~/jarvis/models/
-```
 
-The default configuration expects:
+The default model path is:
 
-```text
 ~/jarvis/models/Qwen2.5-3B-Instruct-Q4_K_M.gguf
-```
 
 Check that the model exists:
 
-```bash
 ls -lh ~/jarvis/models/
-```
 
-Then check that `llama-cli` is available:
+Then check whether "llama-cli" is available:
 
-```bash
 which llama-cli
-```
 
-If it returns a valid executable path, the local Qwen engine can be used.
+If the command returns a valid executable path, the local Qwen engine should be available.
 
 ---
 
-# ▶️ Running E.V.
+▶️ Running E.V.
 
-Start the assistant with:
+Start E.V. with:
 
-```bash
 python jarvis.py
-```
 
 You should see the E.V. initialization interface followed by the main prompt.
 
 Example:
 
-```text
         [ SYSTEM STATUS ]
 
     ◉ CORE ............... ON
@@ -266,75 +253,74 @@ Example:
           E.V. ONLINE
 
 You > Hello E.V.
-```
 
-Then simply start chatting.
+Then start chatting.
 
 ---
 
-# ⚙️ Commands
+⚙️ Commands
 
-## Model Control
+🤖 Model
 
-```text
 /model auto
 /model gemini
 /model qwen
-```
 
-## Memory
+💾 Memory
 
-```text
 /memory
 /remember <fact>
 /forget <number>
 /forget all
-```
 
-## Session
+🖥️ Session
 
-```text
 /clear
 /status
 /help
 /exit
 /quit
-```
 
 ---
 
-# 🧩 Project Structure
+📁 Project Structure
 
-```text
 Tarmix-Jarvis-for-termux/
 │
-├── jarvis.py              # Main E.V. application
-├── local_ai.py            # Local Qwen interface
-├── personality.txt        # E.V. personality and behavior
-├── .env.example           # Environment configuration template
-├── .gitignore             # Git exclusions
+├── jarvis.py
+├── local_ai.py
+├── personality.txt
+├── .env.example
+├── .gitignore
 │
-├── memory.json            # Local persistent memory
+├── memory.json
 │
 └── models/
-    └── *.gguf             # Local AI models
-```
+    └── *.gguf
+
+Main files
+
+File| Purpose
+"jarvis.py"| Main E.V. application
+"local_ai.py"| Local Qwen interface
+"personality.txt"| E.V. personality configuration
+".env.example"| Environment configuration template
+".gitignore"| Git exclusions
+"memory.json"| Persistent local memory
+"models/"| Local GGUF models
 
 ---
 
-# 🔐 Security
+🔐 Security
 
-Your Gemini API key belongs in:
+API keys should be stored in:
 
-```text
 .env
-```
 
-Never put your real API key directly into Python source code or commit it to GitHub.
+Never place real API keys directly inside Python source code.
 
-The repository ignores sensitive and local files including:
+The repository is configured to ignore sensitive and local files such as:
 
-```text
 .env
 memory.json
 models/*
@@ -343,139 +329,124 @@ __pycache__/
 *.gguf
 *.save
 *.save.*
-```
 
-If you accidentally expose an API key, **revoke it immediately and generate a new one.**
+🚨 If an API key is exposed
+
+Immediately:
+
+1. Revoke the exposed key.
+2. Generate a new key.
+3. Replace the key in ".env".
+4. Make sure the old key is not committed to Git.
 
 ---
 
-# 🛠️ Troubleshooting
+🛠️ Troubleshooting
 
-## Gemini isn't working
+🌐 Gemini isn't working
 
-Check that your environment contains a Gemini key.
+Check your ".env" file:
 
-```bash
 cat .env
-```
 
-It should contain:
+Make sure it contains:
 
-```text
 GEMINI_API_KEY=your_key_here
-```
 
-Also check your selected model:
+Also check the selected model:
 
-```text
 JARVIS_MODEL=auto
-```
 
 or:
 
-```text
 JARVIS_MODEL=gemini
-```
 
 ---
 
-## Qwen isn't working
+🧠 Qwen isn't working
 
-Check the model:
+Check that the model exists:
 
-```bash
 ls -lh ~/jarvis/models/
-```
 
-Then check `llama-cli`:
+Then check "llama-cli":
 
-```bash
 which llama-cli
-```
 
-You can also force Qwen:
+You can force Qwen mode with:
 
-```bash
 python jarvis.py --model qwen
-```
 
 ---
 
-## Check the repository state
+🔍 Check repository state
 
-```bash
 git status
-```
 
 ---
 
-# 🎯 Project Goal
+🎯 Project Goal
 
-E.V. started as a simple terminal AI experiment and evolved into a hybrid assistant capable of using both cloud AI and local AI.
+E.V. started as a simple terminal AI experiment and evolved into a hybrid assistant capable of switching between cloud and local intelligence.
 
-The long-term goal is simple:
+The long-term goal is to build an assistant that remains useful regardless of network availability.
 
-```text
-                 E.V.
-                  │
-        ┌─────────┴─────────┐
-        │                      │
-     INTERNET             NO INTERNET
-        │                      │
-        ▼                      ▼
-    🌐 GEMINI             🧠 QWEN
-     Cloud AI              Local AI
-        │                      │
-        └─────────┬─────────┘
-                  │
-                  ▼
-             ⚡ E.V.
-       Enhanced Virtuality
-```
+flowchart TD
+    A["⚡ E.V.<br/>Enhanced Virtuality"] --> B{"Internet Available?"}
 
-The assistant should remain useful regardless of whether the device has an internet connection.
+    B -->|YES| C["🌐 GEMINI<br/>Cloud AI"]
+    B -->|NO| D["🧠 QWEN<br/>Local AI"]
 
-**One assistant.
-Two brains.
-Local fallback.
-No Wi-Fi panic.**
+    C --> E["⚡ E.V."]
+    D --> E
+
+The idea is straightforward:
+
+Use cloud intelligence when available.
+Use local intelligence when necessary.
 
 ---
 
-# 🗺️ Roadmap
+🗺️ Roadmap
 
 E.V. is still evolving.
 
-Potential future improvements include:
+Possible future improvements include:
 
-* 🎨 More advanced terminal UI
-* 🧠 Improved local model management
-* 💾 Smarter memory
-* 🔧 More terminal tools
-* 🖥️ System information and control
-* 🔌 Extensible AI providers
-* ⚡ Faster local inference
-* 🤖 More capable autonomous workflows
-
----
-
-# 📜 License
-
-MIT License.
+- 🎨 More advanced terminal UI
+- 🧠 Improved local model management
+- 💾 Smarter memory
+- 🔧 More terminal tools
+- 🖥️ System information and device controls
+- 🔌 Extensible AI provider system
+- ⚡ Faster local inference
+- 🤖 More capable autonomous workflows
+- 🧩 Additional local and cloud models
 
 ---
 
-<div align="center">
+🤝 Contributing
 
-# ⚡ E.V.
+E.V. is a personal project, but improvements, ideas, bug reports, and experiments are welcome.
 
-### Enhanced Virtuality
+If you find a problem or have an idea for E.V., feel free to open an issue or contribute to the project.
 
-**Built for Termux.
+---
+
+📜 License
+
+This project is licensed under the MIT License.
+
+---
+
+<div align="center">⚡ E.V.
+
+Enhanced Virtuality
+
+Built for Termux.
 Powered by AI.
-Backed by local intelligence.**
+Backed by local intelligence.
 
 🧠 🌐 ⚡
 
 </div>
-```
