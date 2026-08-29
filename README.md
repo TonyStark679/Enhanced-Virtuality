@@ -34,32 +34,31 @@ When the network is available, E.V. can communicate with Gemini through the Gemi
 
 ## 🧠 How It Works
 
-```text
-                         ┌─────────────────────┐
-                         │  E.V.               │
-                         │  Enhanced Virtuality│
-                         └──────────┬──────────┘
-                                    │
-                              Choose Model
-                                    │
-                    ┌───────────────┴───────────────┐
-                    │                               │
-                  AUTO                            MANUAL
-                    │                               │
-             Check Gemini                    Gemini / Qwen
-                    │
-             ┌──────┴──────┐
-             │             │
-          AVAILABLE     UNAVAILABLE
-             │             │
-             ▼             ▼
-        🌐 GEMINI       🧠 QWEN
-        Cloud AI       Local GGUF
-             │             │
-             └──────┬──────┘
-                    │
-                    ▼
-              ⚡ E.V. RESPONSE
+```
+      ┌─────────────────────┐
+      │  E.V.               │
+      │  Enhanced Virtuality│
+      └──────────┬──────────┘
+                   │
+               Choose Model
+                   │                                            ┌───────────────┴───────────────┐ 
+│                                    │
+AUTO                              MANUAL
+  │                                    │
+Check Gemini                  Gemini / Qwen
+          │
+  ┌──────┴──────┐
+  │               │
+AVAILABLE     UNAVAILABLE
+  │             │
+  ▼             ▼
+🌐 GEMINI       🧠 QWEN
+  Cloud AI       Local GGUF
+  │               │
+  └──────┬──────┘
+          │
+          ▼
+    ⚡ E.V. RESPONSE
 ```
 
 ---
@@ -420,13 +419,13 @@ The long-term goal is simple:
                  E.V.
                   │
         ┌─────────┴─────────┐
-        │                   │
-     INTERNET           NO INTERNET
-        │                   │
-        ▼                   ▼
+        │                      │
+     INTERNET             NO INTERNET
+        │                      │
+        ▼                      ▼
     🌐 GEMINI             🧠 QWEN
-     Cloud AI            Local AI
-        │                   │
+     Cloud AI              Local AI
+        │                      │
         └─────────┬─────────┘
                   │
                   ▼
